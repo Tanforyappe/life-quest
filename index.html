@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1017">
+<meta name="description" content="把生活变成游戏：每日任务、每周任务、BOSS 任务，打卡升级拿金币换奖励。">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="人生副本">
+<meta name="format-detection" content="telephone=no">
+<title>人生副本 · Life Quest</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== 顶部状态栏：等级 / 经验 / 金币 / 连续天数 ===== -->
+<header class="player" id="player"></header>
+
+<!-- ===== 内容区 ===== -->
+<main id="main">
+  <section class="view" id="view-tasks"></section>
+  <section class="view" id="view-shop"></section>
+  <section class="view" id="view-log"></section>
+  <section class="view" id="view-me"></section>
+</main>
+
+<!-- ===== 底部导航 ===== -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab" data-action="tab" data-tab="tasks"><span class="ti">⚔️</span><span>任务</span></button>
+  <button class="tab" data-action="tab" data-tab="shop"><span class="ti">🎁</span><span>奖励</span></button>
+  <button class="tab" data-action="tab" data-tab="log"><span class="ti">📈</span><span>记录</span></button>
+  <button class="tab" data-action="tab" data-tab="me"><span class="ti">🧙</span><span>我的</span></button>
+</nav>
+
+<div id="modal-root"></div>
+<div id="toast-root" class="toast-root"></div>
+<div id="fx-root" class="fx-root"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
