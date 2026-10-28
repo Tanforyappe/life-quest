@@ -60,7 +60,9 @@ input, select, textarea{ font: inherit; }
 .pc-main{ flex: 1; min-width: 0; }
 .pc-top{ display: flex; align-items: baseline; gap: 8px; }
 .pc-lv{ font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .3px; }
-.pc-name{ font-size: 13px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-title{ font-size: 13px; font-weight: 800; letter-spacing: .3px; }
+.pc-name{ font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-name::before{ content: "·"; margin-right: 5px; opacity: .6; }
 .xpbar{
   margin-top: 6px; height: 8px; border-radius: 99px; overflow: hidden;
   background: #1b2230; border: 1px solid var(--line);
@@ -84,8 +86,12 @@ input, select, textarea{ font: inherit; }
 /* ---------- 通用布局 ---------- */
 main{ max-width: 620px; margin: 0 auto; padding: 0 16px calc(96px + var(--safe-b)); }
 .view{ display: none; }
-.view.active{ display: block; animation: fadeUp .28s ease both; }
+.view.active{ display: block; animation: fadeUp .28s ease; }
 @keyframes fadeUp{ from{ opacity: 0; transform: translateY(8px); } to{ opacity: 1; transform: none; } }
+/* 有些系统开了「减少动态效果」，就不要再做动画了 */
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: .001s !important; transition-duration: .001s !important; }
+}
 
 .sec-title{
   display: flex; align-items: center; justify-content: space-between;
@@ -363,4 +369,230 @@ main{ max-width: 620px; margin: 0 auto; padding: 0 16px calc(96px + var(--safe-b
   .tabbar{ max-width: 620px; margin: 0 auto; border-radius: 18px 18px 0 0; border: 1px solid var(--line); border-bottom: 0; }
   .modal{ border-radius: 22px; margin-bottom: 6vh; max-height: 82vh; }
   .modal-mask{ align-items: center; }
+}
+
+/* =========================================================
+   v2 新增：连击标签 / 本周柱状图 / 专注计时 / 称号
+   ========================================================= */
+
+/* 任务卡片上的连击倍率小标签 */
+.tag-mul{
+  color: var(--gold); font-weight: 800; font-size: 10px;
+  padding: 0 5px; border-radius: 6px;
+  background: rgba(246,196,83,.12); border: 1px solid rgba(246,196,83,.35);
+}
+
+/* ---------- 本周柱状图 ---------- */
+.chart{
+  display: flex; align-items: flex-end; gap: 6px; height: 132px;
+  padding: 8px 10px 6px; border-radius: 14px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.bar-col{ flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.bar-num{ height: 15px; font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.bar-track{ flex: 1; width: 100%; position: relative; }
+.bar-track > i{
+  position: absolute; left: 0; right: 0; bottom: 0; display: block; border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, #6de3d6, #2a8f86);
+  transition: height .45s cubic-bezier(.2,.9,.2,1);
+  box-shadow: 0 0 10px rgba(79,209,197,.25);
+}
+.bar-track > i.today{ background: linear-gradient(180deg, #ffd97a, var(--gold)); box-shadow: 0 0 10px rgba(246,196,83,.3); }
+.bar-day{ margin-top: 5px; font-size: 10px; color: var(--text-dim); }
+
+/* ---------- 专注计时（番茄钟） ---------- */
+.focus-card{
+  padding: 20px 16px 16px; border-radius: 20px; text-align: center;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.ring-wrap{ position: relative; width: 220px; height: 220px; margin: 0 auto; }
+.ring{ width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.ring-bg{ fill: none; stroke: #1b2434; stroke-width: 12; }
+.ring-fg{
+  fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round;
+  transition: stroke-dashoffset .45s linear;
+  filter: drop-shadow(0 0 6px rgba(79,209,197,.45));
+}
+.ring-center{ position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 4px; }
+.focus-time{
+  font-size: 42px; font-weight: 800; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.focus-sub{ font-size: 12px; color: var(--text-dim); }
+.focus-presets{ margin-top: 18px; }
+.focus-presets button:disabled{ opacity: .45; }
+.focus-actions{ display: flex; gap: 8px; margin-top: 12px; }
+.focus-actions .btn{ padding: 12px; }
+.focus-tip{
+  margin: 12px 0 14px; font-size: 12px; line-height: 1.7;
+  color: var(--text-dim); text-align: center;
+}
+.focus-tip b{ color: var(--text); }
+
+/* ---------- 称号列表 ---------- */
+.title-list{
+  border-radius: 14px; overflow: hidden;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.title-row{
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 13px; font-size: 13px;
+  border-bottom: 1px solid rgba(37,48,68,.5);
+  opacity: .5;
+}
+.title-row:last-child{ border-bottom: 0; }
+.title-row.on{ opacity: 1; background: rgba(255,255,255,.02); }
+.title-row.next{ opacity: .8; border-left: 3px solid var(--accent); }
+.tdot{ width: 8px; height: 8px; border-radius: 99px; flex: 0 0 8px; }
+.tname{ flex: 1; font-weight: 700; }
+.tmin{ font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.tstate{ width: 62px; text-align: right; font-size: 10.5px; color: var(--gold); }
+
+/* =========================================================
+   v3 新增：惩罚 / 娱乐时长 / 日记 / 流水 / 备忘录
+   ========================================================= */
+
+/* 6 个标签时压缩一点 */
+.tab{ position: relative; font-size: 9.5px; padding: 5px 0; }
+.tab .ti{ font-size: 17px; }
+.tab.has-due::before{
+  content: ""; position: absolute; top: 2px; left: 50%; margin-left: 5px;
+  width: 7px; height: 7px; border-radius: 99px; background: var(--danger);
+  box-shadow: 0 0 6px rgba(255,107,107,.8);
+}
+
+/* ---------- 娱乐时长卡片 ---------- */
+.dash-card{
+  padding: 15px 16px; margin-bottom: 12px; border-radius: 18px;
+  background: linear-gradient(155deg, rgba(124,108,255,.16), var(--bg-soft) 62%);
+  border: 1px solid var(--line);
+}
+.dash-title{ font-size: 12.5px; font-weight: 700; color: var(--text-dim); letter-spacing: .5px; }
+.dash-num{
+  margin: 4px 0 2px; font-size: 32px; font-weight: 800; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: #cbb9ff;
+}
+.dash-num span{ margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.dash-sub{ font-size: 11.5px; color: var(--text-dim); }
+.exchange-row{ display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.exchange-row .input{ flex: 1; padding: 10px 12px; }
+.btn-min{
+  padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 800;
+  color: #1a1030; background: linear-gradient(180deg, #d3c2ff, #a98cff);
+  box-shadow: 0 4px 14px rgba(169,140,255,.25); white-space: nowrap;
+}
+.btn-min:disabled{ background: #232c3e; color: #6c7a92; box-shadow: none; }
+.btn-use{
+  padding: 10px 14px; border-radius: 12px; font-size: 13.5px; font-weight: 800;
+  color: var(--text); background: #1d2637; border: 1px solid #34425c; white-space: nowrap;
+}
+.btn-use:active{ background: #26324a; }
+.dash-hint{ margin-top: 8px; font-size: 11.5px; color: var(--text-dim); line-height: 1.6; }
+.dash-hint b{ color: var(--text); }
+.ratio-txt{ align-self: center; font-size: 13px; color: var(--text-dim); white-space: nowrap; }
+.quick-row{ display: flex; gap: 6px; margin-top: 8px; }
+.quick-row button{
+  flex: 1; padding: 7px 0; border-radius: 10px; font-size: 12px; font-weight: 700;
+  color: var(--text-dim); background: #131a26; border: 1px solid var(--line);
+}
+.quick-row button:active{ background: #1d2637; color: var(--text); }
+
+/* 惩罚卡片（红色调） */
+.punish-row .t-icon{ background: rgba(255,107,107,.10); border-color: rgba(255,107,107,.28); }
+.btn-punish{
+  padding: 9px 13px; border-radius: 12px; font-size: 13px; font-weight: 800;
+  color: #2a0000; background: linear-gradient(180deg, #ff9c9c, var(--danger));
+  box-shadow: 0 4px 14px rgba(255,107,107,.22); white-space: nowrap;
+}
+
+/* ---------- 日记 ---------- */
+.cal-nav{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cal-nav .cal-date{ flex: 1; text-align: center; font-size: 14px; font-weight: 700; }
+.cal-nav button{
+  padding: 7px 12px; border-radius: 10px; font-size: 12.5px; color: var(--text-dim);
+  background: #131a26; border: 1px solid var(--line);
+}
+.day-sum{
+  padding: 12px 13px; border-radius: 14px; margin-bottom: 12px;
+  background: var(--bg-soft2); border: 1px solid var(--line);
+  font-size: 12.5px; line-height: 1.9; color: var(--text-dim);
+}
+.day-sum b{ color: var(--text); font-variant-numeric: tabular-nums; }
+.day-sum .in{ color: #6de3d6; }
+.day-sum .out{ color: var(--danger); }
+.mood-row{ display: flex; gap: 8px; margin-bottom: 12px; }
+.mood-row button{
+  width: 40px; height: 40px; border-radius: 12px; font-size: 19px;
+  background: #131a26; border: 1px solid var(--line);
+}
+.mood-row button.on{ border-color: var(--accent); background: rgba(79,209,197,.13); }
+textarea.input{ min-height: 132px; resize: vertical; line-height: 1.7; }
+.diary-item{
+  padding: 11px 13px; border-radius: 13px; margin-bottom: 8px;
+  background: var(--bg-soft); border: 1px solid var(--line); font-size: 12.5px;
+}
+.diary-item .dh{ display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.diary-item .dm{ font-size: 16px; }
+.diary-item .dt{ flex: 1; color: var(--text-dim); font-size: 11.5px; }
+.diary-item .dx{ color: var(--text-dim); line-height: 1.6; white-space: pre-wrap; }
+
+/* ---------- 流水 ---------- */
+.led-row{
+  display: flex; align-items: center; gap: 10px; padding: 9px 2px;
+  border-bottom: 1px solid rgba(37,48,68,.55); font-size: 13px;
+}
+.led-row:last-child{ border-bottom: 0; }
+.led-ico{ font-size: 15px; flex: 0 0 18px; text-align: center; }
+.led-main{ flex: 1; min-width: 0; }
+.led-reason{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led-cat{ font-size: 10.5px; color: var(--text-dim); margin-top: 1px; }
+.led-right{ text-align: right; white-space: nowrap; }
+.led-delta{ font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+.led-delta.up{ color: #6de3d6; }
+.led-delta.down{ color: var(--danger); }
+.led-time{ font-size: 10.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.filter-row{ display: flex; gap: 6px; margin-bottom: 10px; }
+.filter-row button{
+  flex: 1; padding: 8px 0; border-radius: 10px; font-size: 12.5px; font-weight: 700;
+  color: var(--text-dim); background: #131a26; border: 1px solid var(--line);
+}
+.filter-row button.on{ color: #0b1016; background: linear-gradient(180deg, #6de3d6, var(--accent)); }
+
+/* ---------- 备忘录 ---------- */
+.memo{
+  padding: 12px 13px; border-radius: 14px; margin-bottom: 8px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.memo.due{ border-color: rgba(255,107,107,.45); background: linear-gradient(150deg, rgba(255,107,107,.10), var(--bg-soft) 60%); }
+.memo.done{ opacity: .45; }
+.memo.done .memo-text{ text-decoration: line-through; }
+.memo-text{ font-size: 14px; font-weight: 600; line-height: 1.5; word-break: break-word; }
+.memo-time{ margin-top: 5px; font-size: 11.5px; color: var(--text-dim); }
+.memo-time.over{ color: var(--danger); font-weight: 700; }
+.memo-actions{ display: flex; gap: 6px; margin-top: 8px; }
+.memo-actions button{
+  padding: 4px 10px; border-radius: 9px; font-size: 11.5px; color: var(--text-dim);
+  background: #161d2a; border: 1px solid var(--line);
+}
+.memo-actions button.on{ color: var(--accent); border-color: rgba(79,209,197,.35); }
+.memo-actions button.danger{ color: var(--danger); border-color: rgba(255,107,107,.3); }
+.memo-form{ padding: 13px; border-radius: 16px; background: var(--bg-soft2); border: 1px solid var(--line); margin-bottom: 12px; }
+.memo-form .input{ margin-bottom: 8px; }
+
+/* 头顶第三个小筹码 */
+.chip.min{ color: #cbb9ff; border-color: rgba(203,185,255,.35); background: rgba(203,185,255,.10); }
+
+/* 两列表单 */
+.field-row{ display: flex; gap: 10px; }
+.field-row > div{ flex: 1; min-width: 0; }
+.set-hint{ margin: -6px 0 14px; font-size: 11.5px; color: var(--text-dim); line-height: 1.6; }
+
+/* 专注页里直接改奖励数值 */
+.focus-cfg{
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  flex-wrap: wrap; margin-top: 16px; font-size: 12px; color: var(--text-dim);
+}
+.input.tiny{
+  width: 66px; display: inline-block; padding: 6px 8px;
+  font-size: 13px; text-align: center; border-radius: 9px;
 }
