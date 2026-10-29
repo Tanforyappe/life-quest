@@ -76,15 +76,7 @@
 
   const TYPE_LABEL = { daily: '每日', weekly: '每周', boss: 'BOSS' };
 
-  /* 连击倍率（新功能 ①）：连续打卡第 N 天，奖励乘多少。
-     从第 3 天开始加成，断了就归零。想调手感改这里。 */
-  const STREAK_TIERS = [
-    { min: 30, mul: 2.0, label: '神话连击' },
-    { min: 14, mul: 1.8, label: '钢铁连击' },
-    { min: 7,  mul: 1.5, label: '强力连击' },
-    { min: 3,  mul: 1.2, label: '连击' },
-    { min: 1,  mul: 1.0, label: '' }
-  ];
+  /* 连击倍率：档位表在下面 DEFAULT_SETTINGS / STREAK_TIERS 里定义，可在「我的」页增删改 */
 
   /* 等级称号（新功能 ⑤） */
   const TITLES = [
@@ -124,8 +116,60 @@
     minuteCost: 2,          // 兑换比例：多少金币
     minuteGain: 1,          //           换多少分钟
     dailyBonusTasks: 5,     // 一天完成多少个任务算达标
-    dailyBonusMinutes: 60   // 达标送多少分钟
+    dailyBonusMinutes: 60,  // 达标送多少分钟
+    importantMin: 4,        // 每天至少要完成几个「重要」任务，否则当天算失败
+    streakTiers: []         // 连胜倍率档位，下面用默认值填
   };
+
+  /** 连胜倍率默认档位（界面上可以随便增删改） */
+  const STREAK_TIERS = [
+    { min: 3,  mul: 1.2 },
+    { min: 7,  mul: 1.5 },
+    { min: 14, mul: 1.8 },
+    { min: 30, mul: 2.0 }
+  ];
+
+  function defaultTiers() {
+    return STREAK_TIERS.map((t) => ({ min: t.min, mul: t.mul }));
+  }
+
+  /** 整理档位表：按天数升序、去掉重复天数、数值夹在合理范围 */
+  function normalizeTiers(list) {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach((t) => {
+      const min = clampInt(t && t.min, 1, 365, 1);
+      let mul = parseFloat(t && t.mul);
+      if (!isFinite(mul)) mul = 1;
+      mul = Math.min(10, Math.max(1, Math.round(mul * 10) / 10));
+      out.push({ min: min, mul: mul });
+    });
+    out.sort((a, b) => a.min - b.min);
+    const seen = {};
+    return out.filter((t) => {
+      if (seen[t.min]) return false;
+      seen[t.min] = true;
+      return true;
+    });
+  }
+
+  function normalizeSettings(s) {
+    const o = Object.assign({}, DEFAULT_SETTINGS, s || {});
+    o.streakTiers = normalizeTiers(
+      Array.isArray(o.streakTiers) && o.streakTiers.length ? o.streakTiers : defaultTiers()
+    );
+    const num = (k, dflt) => {
+      const v = parseFloat(o[k]);
+      return isFinite(v) ? v : dflt;
+    };
+    o.focusXpPerMin = num('focusXpPerMin', 1.5);
+    o.focusCoinPerMin = num('focusCoinPerMin', 0.35);
+    o.minuteCost = num('minuteCost', 2);
+    o.minuteGain = num('minuteGain', 1);
+    o.dailyBonusTasks = num('dailyBonusTasks', 5);
+    o.dailyBonusMinutes = num('dailyBonusMinutes', 60);
+    o.importantMin = num('importantMin', 4);
+    return o;
+  }
 
   /* 惩罚项模板 */
   const PUNISH_PRESETS = [
@@ -185,7 +229,7 @@
     const wkey = weekKey();
     const mk = (o) => Object.assign({
       id: uid(), type: 'daily', name: '', icon: '✅', target: 1, unit: '次',
-      diff: 'normal', xp: 30, coins: 8, progress: 0, done: false,
+      diff: 'normal', xp: 30, coins: 8, progress: 0, done: false, level: 'basic',
       cycleKey: today, due: '', createdAt: Date.now()
     }, o);
 
@@ -213,7 +257,9 @@
       diary: [],                 // 每日日记 { day, mood, text, ts }
       memos: [],                 // 备忘录
       bonusDays: {},             // 哪天已经领过「每日达标」奖励
-      settings: Object.assign({}, DEFAULT_SETTINGS),
+      failedDays: {},            // 哪天被判定「重要任务不达标」而失败
+      ruleActiveFrom: null,      // 「重要任务」规则从哪天开始生效（之前的旧日子不倒扣）
+      settings: normalizeSettings({}),
       sound: true,
       createdAt: Date.now()
     };
@@ -238,11 +284,14 @@
       obj.diary = Array.isArray(obj.diary) ? obj.diary : [];
       obj.memos = Array.isArray(obj.memos) ? obj.memos : [];
       obj.bonusDays = obj.bonusDays && typeof obj.bonusDays === 'object' ? obj.bonusDays : {};
-      obj.settings = Object.assign({}, DEFAULT_SETTINGS, obj.settings || {});
+      obj.failedDays = obj.failedDays && typeof obj.failedDays === 'object' ? obj.failedDays : {};
+      if (typeof obj.ruleActiveFrom !== 'string') obj.ruleActiveFrom = null;
+      // 老任务没有「基本/重要」等级，默认按「基本」处理
+      obj.tasks.forEach((t) => { if (t.level !== 'important') t.level = 'basic'; });
+      obj.settings = normalizeSettings(obj.settings);
       // 老版本用的是「1 分钟 = N 金币」，升级成「N 金币 = 1 分钟」
-      if (typeof obj.settings.minuteRate === 'number') {
+      if (obj.settings.minuteRate != null) {
         if (obj.settings.minuteCost == null) obj.settings.minuteCost = obj.settings.minuteRate;
-        if (obj.settings.minuteGain == null) obj.settings.minuteGain = 1;
         delete obj.settings.minuteRate;
       }
       obj.ledger = Array.isArray(obj.ledger) ? obj.ledger : null;   // null = 老存档，需要补账
@@ -303,6 +352,7 @@
 
   /** 连续打卡天数：从今天（或昨天）往前数（打卡和专注都算一天的活动） */
   function computeStreak() {
+    if (todayFailed()) return 0;      // 今天被判失败 → 连胜当场中断
     const days = activityDays();
     if (!days.size) return 0;
     let cur = new Date();
@@ -329,20 +379,59 @@
   function allActivity() {
     return state.completions.concat(state.focus || []);
   }
+
+  /** 被判失败的那天不算「有效活动日」（连胜会因此中断） */
+  function isFailedDay(day) {
+    return !!(state.failedDays && state.failedDays[day] === true);
+  }
+
   function activityDays() {
-    return new Set(allActivity().map((c) => c.day));
+    const set = new Set();
+    allActivity().forEach((c) => { if (!isFailedDay(c.day)) set.add(c.day); });
+    return set;
+  }
+
+  function todayFailed() {
+    return isFailedDay(dayKey());
+  }
+
+  /** 每天至少要完成几个重要任务 */
+  function importantMin() {
+    const v = parseInt(state.settings.importantMin, 10);
+    return isFinite(v) && v > 0 ? v : 4;
+  }
+
+  /** 所有「重要」的每日任务 */
+  function importantTasks() {
+    return state.tasks.filter((t) => t.type === 'daily' && t.level === 'important');
+  }
+
+  /** 今天已完成的重要任务数 */
+  function importantDoneToday() {
+    return importantTasks().filter((t) => t.done).length;
+  }
+
+  /** 「重要任务」规则有没有生效（重要任务数量本身要够，不然永远达不到） */
+  function ruleActive() {
+    return importantTasks().length >= importantMin();
   }
 
   /** 连击信息：今天是你连续第几天，奖励乘多少 */
   function streakInfo() {
+    // 今天被判定失败 → 加成直接归零
+    if (todayFailed()) return { day: 0, mul: 1, failed: true };
+
     // 用「截至昨天的连击数 + 1」来算，这样一整天里倍率不会变
     const days = activityDays();
     let cur = addDays(new Date(), -1);
     let prev = 0;
     while (days.has(dayKey(cur))) { prev++; cur = addDays(cur, -1); }
     const n = prev + 1;   // 今天算“第 n 天”，打没打卡都一样
-    const tier = STREAK_TIERS.find((t) => n >= t.min) || STREAK_TIERS[STREAK_TIERS.length - 1];
-    return { day: n, mul: tier.mul, label: tier.label };
+
+    const tiers = state.settings.streakTiers || [];
+    let mul = 1;
+    for (let i = 0; i < tiers.length; i++) if (n >= tiers[i].min) mul = tiers[i].mul;
+    return { day: n, mul: mul, failed: false };
   }
 
   /** 把基础奖励乘上连击倍率 */
@@ -420,6 +509,7 @@
       bossDone: cs.filter((c) => c.type === 'boss').length,
       activeDays: activityDays().size,
       streak: fresh,
+      streakFailed: todayFailed(),
       streakDay: sk.day,
       mul: sk.mul,
       mulLabel: sk.label,
@@ -534,6 +624,62 @@
     const gain = state.settings.dailyBonusMinutes;
     addMinutes(gain, 'bonus', '今日完成 ' + need + ' 个任务');
     return gain;
+  }
+
+  /* ---------- 「重要任务」规则 ---------- */
+
+  /** 规则从「第一次满足条件」的那天开始生效，之前的老日子不倒扣 */
+  function syncRuleState() {
+    if (!ruleActive()) return;
+    if (typeof state.ruleActiveFrom !== 'string') state.ruleActiveFrom = dayKey();
+  }
+
+  /** 结算过去的日子：重要任务没做够 → 那天算失败 */
+  function judgePastDays() {
+    if (!state.failedDays) state.failedDays = {};
+    if (!ruleActive()) return false;
+    const today = dayKey();
+    const from = state.ruleActiveFrom || today;
+    const min = importantMin();
+    let changed = false;
+    const days = new Set(allActivity().map((c) => c.day));
+    days.forEach((d) => {
+      if (d >= today || d < from) return;                // 只判昨天及以前
+      if (state.failedDays[d] !== undefined) return;     // 已经判过了
+      const done = state.completions.filter((c) =>
+        c.day === d && c.type === 'daily' && c.level === 'important').length;
+      state.failedDays[d] = done < min;
+      changed = true;
+    });
+    return changed;
+  }
+
+  /** 今天已经不可能达标了吗？（重要任务全做完了还是不够） */
+  function checkTodayRule() {
+    if (!ruleActive() || todayFailed()) return false;
+    const min = importantMin();
+    const imp = importantTasks();
+    const done = imp.filter((t) => t.done).length;
+    const left = imp.filter((t) => !t.done).length;
+    if (done < min && left === 0) {
+      state.failedDays[dayKey()] = true;
+      return true;
+    }
+    return false;
+  }
+
+  /** 给界面看的状态 */
+  function importantStatus() {
+    const total = importantTasks().length;
+    const min = importantMin();
+    const done = importantDoneToday();
+    return {
+      total: total, min: min, done: done,
+      active: total >= min,
+      ok: done >= min,
+      failed: todayFailed(),
+      left: Math.max(0, min - done)
+    };
   }
 
   /* ---------- 备忘录提醒 ---------- */
@@ -657,6 +803,7 @@
 
     state.completions.push({
       id: uid(), taskId: t.id, name: t.name, icon: t.icon, type: t.type,
+      level: t.level || 'basic',
       xp: bonus.xp, coins: bonus.coins, baseXp: t.xp, mul: bonus.mul,
       day: dayKey(), ts: Date.now()
     });
@@ -664,11 +811,16 @@
     const lvUp = grantLevelRewards();
     state.player.bestStreak = Math.max(state.player.bestStreak || 0, computeBestStreak());
     const bonusMin = checkDailyBonus();
+    const dayFailed = checkTodayRule();
     const newAch = checkAchievements();
 
     save();
     sfxComplete();
     toast('+' + bonus.xp + ' XP   🪙+' + bonus.coins + (bonus.mul > 1 ? '   ×' + bonus.mul : ''), 'good');
+
+    if (dayFailed) {
+      setTimeout(() => toast('⚠️ 重要任务没做够 ' + importantMin() + ' 个，今天判定失败：连胜和加成已中断', 'bad'), 400);
+    }
 
     if (lvUp) {
       setTimeout(() => {
@@ -860,13 +1012,16 @@
           '</div>' +
           '<div class="xpbar"><i style="width:' + pct + '%"></i></div>' +
           '<div class="pc-sub">' + s.xp + ' / ' + s.need + ' XP' +
-            (s.mul > 1 ? '　·　<span style="color:var(--gold);font-weight:700">🔥 连击 ×' + s.mul + '</span>' : '') +
+            (s.streakFailed
+              ? '　·　<span style="color:var(--danger);font-weight:700">🔥 连击已中断</span>'
+              : (s.mul > 1 ? '　·　<span style="color:var(--gold);font-weight:700">🔥 连击 ×' + s.mul + '</span>' : '')) +
           '</div>' +
         '</div>' +
         '<div class="pc-side">' +
           '<span class="chip gold">🪙 ' + s.coins + '</span>' +
           '<span class="chip min">⏳ ' + s.minutes + '</span>' +
-          '<span class="chip fire">🔥 ' + s.streak + ' 天</span>' +
+          '<span class="chip fire' + (s.streakFailed ? ' dead' : '') + '">🔥 ' +
+            (s.streakFailed ? '中断' : s.streak + ' 天') + '</span>' +
         '</div>' +
       '</div>';
   }
@@ -891,6 +1046,26 @@
               '<div class="tbar"><i style="width:' + dailyPct + '%"></i></div>' +
               '<span class="tv">' + s.dailyDoneToday + '/' + s.dailyTotal + '</span>' +
             '</div>';
+
+    // 「重要任务」进度条：只有每日任务页才显示
+    if (ui.filter === 'daily') {
+      const imp = importantStatus();
+      if (imp.failed) {
+        html += '<div class="imp-bar dead">⛔ 今天已判定失败：重要任务只完成 ' + imp.done + '/' + imp.min +
+                ' · 连胜和连击加成已中断</div>';
+      } else if (!imp.active) {
+        if (imp.total > 0) {
+          html += '<div class="imp-bar off">⭐ 重要任务 ' + imp.total + ' 个 · 规则未生效（重要任务要有 ' +
+                  imp.min + ' 个以上才启用「必须完成」）</div>';
+        }
+      } else if (imp.ok) {
+        html += '<div class="imp-bar ok">⭐ 重要任务 ' + imp.done + '/' + imp.min + ' · 今日过关 ✓</div>';
+      } else {
+        html += '<div class="imp-bar warn">⭐ 重要任务 ' + imp.done + '/' + imp.min +
+                ' · 还差 ' + imp.left + ' 个，做不到今天就算失败</div>';
+      }
+    }
+
     html += '<div class="seg">' + segs + '</div>';
 
     if (!list.length) {
@@ -912,6 +1087,11 @@
     meta.push('<span class="g">+' + bonus.xp + ' XP</span>');
     meta.push('<span>🪙 +' + bonus.coins + '</span>');
     if (bonus.mul > 1) meta.push('<span class="tag-mul">×' + bonus.mul + '</span>');
+    if (t.type === 'daily') {
+      meta.push(t.level === 'important'
+        ? '<span class="tag-imp">⭐ 重要</span>'
+        : '<span class="tag-basic">基本</span>');
+    }
     meta.push('<span>' + TYPE_LABEL[t.type] + ' · ' + (DIFFS[t.diff] || DIFFS.normal).label + '</span>');
     if (t.type === 'boss') {
       const dt = dueText(t);
@@ -1566,7 +1746,25 @@
         '<div class="set-hint" style="margin:4px 0 0">送多少分钟</div></div>' +
     '</div></div>';
 
-    html += '<button class="row-btn" data-action="reset-settings"><span>↺ 数值恢复默认</span><span class="arrow">›</span></button>';
+    html += '<div class="field"><label>每天至少完成几个「重要」任务</label>' +
+      '<input class="input" type="number" min="1" max="50" data-field="set.importantMin" value="' + st.importantMin + '">' +
+      '<div class="set-hint" style="margin:6px 0 0">完成数少于这个数 → 当天判定失败、连胜中断（重要任务总数要 ≥ 这个数，规则才生效）</div></div>';
+
+    html += '<div class="sec-title"><span>连胜倍率</span><span class="hint">连续满 N 天 → 奖励 ×M</span></div>';
+    html += '<div class="tier-list">' +
+      (st.streakTiers || []).map((t, i) =>
+        '<div class="tier-row">' +
+          '<span class="tier-lb">连续</span>' +
+          '<input class="input tiny" type="number" min="1" max="365" inputmode="numeric" data-field="tier.' + i + '.min" value="' + t.min + '">' +
+          '<span class="tier-lb">天 → ×</span>' +
+          '<input class="input tiny" type="number" min="1" max="10" step="0.1" data-field="tier.' + i + '.mul" value="' + t.mul + '">' +
+          '<button class="tier-del" data-action="del-tier" data-v="' + i + '">删</button>' +
+        '</div>').join('') +
+    '</div>';
+    html += '<div class="set-hint" style="margin:8px 0 0">没达到最低一档 = ×1.0（等于没加成）。改完立刻生效。</div>';
+    html += '<button class="add-btn" data-action="add-tier">＋ 添加一档</button>';
+
+    html += '<button class="row-btn" data-action="reset-settings" style="margin-top:14px"><span>↺ 数值恢复默认</span><span class="arrow">›</span></button>';
 
     html += '<div class="sec-title"><span>设置</span></div>';
     html += '<button class="row-btn" data-action="toggle-sound"><span>🔊 打卡音效</span><span class="arrow">' + (state.sound ? '开' : '关') + '</span></button>';
@@ -1577,7 +1775,7 @@
 
     html += '<div class="sec-title"><span>关于</span></div>';
     html += '<div style="padding:14px;border-radius:14px;background:var(--bg-soft);border:1px solid var(--line);font-size:12.5px;color:var(--text-dim);line-height:1.7">' +
-      '人生副本 v3.1 · 纯本地应用<br>' +
+      '人生副本 v3.2 · 纯本地应用<br>' +
       '数据保存在这台设备的浏览器里，不上传服务器。<br>' +
       '换设备 / 清缓存前，请先「导出备份」。<br>' +
       'Lv.' + s.level + ' ' + s.title.name + ' · 累计经验 ' + s.totalXp + ' · 连续 ' + s.streak + ' 天' +
@@ -1712,9 +1910,12 @@
       draft = {
         id: null, type: type, name: '', icon: type === 'boss' ? '👑' : '✅',
         target: 1, unit: '次', diff: diff, due: type === 'boss' ? dayKey(addDays(new Date(), 14)) : '',
+        level: 'basic',
         xp: DIFFS[diff].xp * mul, coins: DIFFS[diff].coins * mul
       };
     }
+    // 老任务可能没有 xp/coins/level 字段，兜底一下
+    if (!draft.level) draft.level = 'basic';
     // 老任务可能没有 xp/coins 字段，兜底一下
     if (!draft.xp) draft.xp = DIFFS[draft.diff || 'normal'].xp * TYPE_MUL[draft.type];
     if (!draft.coins) draft.coins = DIFFS[draft.diff || 'normal'].coins * TYPE_MUL[draft.type];
@@ -1754,6 +1955,16 @@
             (mul > 1 ? '（' + TYPE_LABEL[d.type] + '任务默认 ×' + mul + '）' : '') + '</p>' +
 
           '<div class="field"><label>任务类型</label><div class="diff-row" style="grid-template-columns:repeat(3,1fr)">' + types + '</div></div>' +
+
+          (d.type === 'daily'
+            ? '<div class="field"><label>任务等级</label>' +
+              '<div class="diff-row" style="grid-template-columns:repeat(2,1fr)">' +
+                '<button data-action="draft-level" data-v="basic" class="' + (d.level !== 'important' ? 'on' : '') + '">基本</button>' +
+                '<button data-action="draft-level" data-v="important" class="' + (d.level === 'important' ? 'on' : '') + '">⭐ 重要</button>' +
+              '</div>' +
+              '<div class="set-hint" style="margin:6px 0 0">「重要」任务每天必须完成 ' + importantMin() +
+                ' 个，做不到当天就判定失败（断连胜、断加成）。等级不影响经验和金币。</div></div>'
+            : '') +
 
           '<div class="field"><label>任务名称</label>' +
             '<input class="input" data-field="name" maxlength="30" placeholder="例如：跑步 3 公里" value="' + esc(d.name) + '"></div>' +
@@ -1816,6 +2027,7 @@
       t.diff = d.diff;
       t.xp = xp;
       t.coins = coins;
+      t.level = d.type === 'daily' ? (d.level || 'basic') : 'basic';
       t.due = d.type === 'boss' ? (d.due || '') : '';
       if (typeChanged) {
         t.cycleKey = d.type === 'daily' ? dayKey() : d.type === 'weekly' ? weekKey() : null;
@@ -1827,6 +2039,7 @@
         id: uid(), type: d.type, name: name, icon: d.icon,
         target: target, unit: (d.unit || '次').slice(0, 4),
         diff: d.diff, xp: xp, coins: coins,
+        level: d.type === 'daily' ? (d.level || 'basic') : 'basic',
         progress: 0, done: false,
         cycleKey: d.type === 'daily' ? dayKey() : d.type === 'weekly' ? weekKey() : null,
         due: d.type === 'boss' ? (d.due || '') : '',
@@ -1999,6 +2212,9 @@
       case 'draft-diff':
         if (draft) { draft.diff = el.dataset.v; resetDraftReward(); renderTaskModal(); }
         break;
+      case 'draft-level':
+        if (draft) { draft.level = el.dataset.v; renderTaskModal(); }
+        break;
       case 'draft-icon':
         if (draft) { draft.icon = el.dataset.v; draftKind === 'task' ? renderTaskModal() : renderRewardModal(); }
         break;
@@ -2144,11 +2360,31 @@
 
       case 'reset-settings':
         if (confirm('把所有数值恢复成默认值？（任务、记录不会丢）')) {
-          state.settings = Object.assign({}, DEFAULT_SETTINGS);
+          state.settings = normalizeSettings({});
           save(); renderAll();
           toast('已恢复默认数值', '');
         }
         break;
+
+      case 'add-tier': {
+        const arr = (state.settings.streakTiers || []).slice();
+        const last = arr.length ? arr[arr.length - 1] : { min: 0, mul: 1 };
+        arr.push({
+          min: Math.min(365, last.min + 7),
+          mul: Math.min(10, Math.round((last.mul + 0.2) * 10) / 10)
+        });
+        state.settings.streakTiers = normalizeTiers(arr);
+        save(); renderAll();
+        break;
+      }
+      case 'del-tier': {
+        const arr = (state.settings.streakTiers || []).slice();
+        if (arr.length <= 1) { toast('至少留一档', 'bad'); break; }
+        arr.splice(parseInt(el.dataset.v, 10), 1);
+        state.settings.streakTiers = normalizeTiers(arr);
+        save(); renderAll();
+        break;
+      }
 
       case 'reset':
         if (confirm('确定清空所有任务、记录和金币吗？\n这个操作不可撤销，建议先导出备份。')) {
@@ -2200,7 +2436,25 @@
     const el = e.target;
     const f = el.dataset.field || '';
 
-    // 数值设置（专注奖励、兑换比例、每日达标）
+    // 数值设置（专注奖励、兑换比例、每日达标、重要任务、连胜倍率）
+    const tm = /^tier\.(\d+)\.(min|mul)$/.exec(f);
+    if (tm) {
+      const i = parseInt(tm[1], 10);
+      const arr = (state.settings.streakTiers || []).slice();
+      if (arr[i]) {
+        if (tm[2] === 'min') {
+          arr[i] = { min: clampInt(el.value, 1, 365, arr[i].min), mul: arr[i].mul };
+        } else {
+          let m = parseFloat(el.value);
+          if (!isFinite(m)) m = arr[i].mul;
+          arr[i] = { min: arr[i].min, mul: Math.min(10, Math.max(1, Math.round(m * 10) / 10)) };
+        }
+        state.settings.streakTiers = normalizeTiers(arr);
+        save(); renderAll();
+      }
+      return;
+    }
+
     if (f.indexOf('set.') === 0) {
       const key = f.slice(4);
       let v = parseFloat(el.value);
@@ -2209,6 +2463,7 @@
       if (key === 'dailyBonusMinutes') v = clampInt(v, 1, 600, DEFAULT_SETTINGS.dailyBonusMinutes);
       if (key === 'minuteCost') v = clampInt(v, 1, 999, DEFAULT_SETTINGS.minuteCost);
       if (key === 'minuteGain') v = clampInt(v, 1, 600, DEFAULT_SETTINGS.minuteGain);
+      if (key === 'importantMin') v = clampInt(v, 1, 50, DEFAULT_SETTINGS.importantMin);
       state.settings[key] = v;
       save();
       renderAll();
@@ -2239,6 +2494,8 @@
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') {
       if (rollCycles()) renderAll();
+      syncRuleState();
+      if (judgePastDays()) renderAll();
       tickFocus();
       checkMemos();
     }
@@ -2282,6 +2539,9 @@
     }
     // v3：老存档没有流水，用旧记录补一份
     if (state.ledger === null) backfillLedger();
+    // 「重要任务」规则：记录生效起始日，并把过去没判过的日子结算掉
+    syncRuleState();
+    judgePastDays();
 
     save();
     renderAll();

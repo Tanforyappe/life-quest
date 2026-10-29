@@ -1,6 +1,6 @@
 ﻿/* Service Worker：让应用可以「离线打开」和「安装到桌面」
    改完代码后，把下面的版本号 +1，用户下次打开就会更新缓存。 */
-const CACHE = 'lifequest-v4';
+const CACHE = 'lifequest-v5';
 
 const ASSETS = [
   './',

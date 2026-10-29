@@ -596,3 +596,51 @@ textarea.input{ min-height: 132px; resize: vertical; line-height: 1.7; }
   width: 66px; display: inline-block; padding: 6px 8px;
   font-size: 13px; text-align: center; border-radius: 9px;
 }
+
+/* =========================================================
+   v3.2：重要任务等级 / 连胜倍率档位
+   ========================================================= */
+
+/* 任务卡上的「基本 / 重要」标签 */
+.tag-basic{
+  font-size: 10px; color: var(--text-dim); font-weight: 700;
+  padding: 0 5px; border-radius: 6px;
+  background: rgba(255,255,255,.05); border: 1px solid var(--line);
+}
+.tag-imp{
+  font-size: 10px; color: #ffd08a; font-weight: 800;
+  padding: 0 5px; border-radius: 6px;
+  background: rgba(246,196,83,.14); border: 1px solid rgba(246,196,83,.42);
+}
+
+/* 重要任务进度提示条 */
+.imp-bar{
+  margin: 0 0 10px; padding: 9px 12px; border-radius: 12px;
+  font-size: 12px; line-height: 1.5; font-weight: 600;
+  border: 1px solid var(--line); background: var(--bg-soft2); color: var(--text-dim);
+}
+.imp-bar b{ color: var(--text); }
+.imp-bar.ok{ color: #8ff0c8; border-color: rgba(79,209,197,.38); background: rgba(79,209,197,.09); }
+.imp-bar.warn{ color: #ffd08a; border-color: rgba(246,196,83,.42); background: rgba(246,196,83,.09); }
+.imp-bar.dead{ color: #ff9c9c; border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.10); }
+.imp-bar.off{ opacity: .8; }
+
+/* 连胜中断时的筹码 */
+.chip.fire.dead{ color: var(--danger); border-color: rgba(255,107,107,.4); background: rgba(255,107,107,.10); }
+
+/* 连胜倍率档位编辑 */
+.tier-list{
+  border-radius: 14px; overflow: hidden;
+  background: var(--bg-soft); border: 1px solid var(--line);
+}
+.tier-row{
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  border-bottom: 1px solid rgba(37,48,68,.5);
+}
+.tier-row:last-child{ border-bottom: 0; }
+.tier-lb{ font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.tier-row .input.tiny{ width: 62px; }
+.tier-del{
+  margin-left: auto; padding: 4px 10px; border-radius: 9px; font-size: 11.5px;
+  color: var(--danger); background: #161d2a; border: 1px solid rgba(255,107,107,.3);
+}
